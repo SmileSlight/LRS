@@ -1,2 +1,2 @@
-# Lars
-Lars -- Load balance And Remote service schedule System
+# LRS
+负载均衡远程服务调度系统
