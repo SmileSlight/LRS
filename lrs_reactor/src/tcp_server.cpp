@@ -12,6 +12,7 @@
 
 #include "tcp_server.h"
 #include "reactor_buf.h"
+#include "tcp_conn.h"
 
 //临时的收发消息
 struct message{
@@ -191,10 +192,15 @@ void tcp_server::do_accept()
         }
         else {
             //accept succ!
-          	// ============= 新增 ======================
-            this->_loop->add_io_event(connfd, server_rd_callback, EPOLLIN, &msg);
+            // ============= 将之前的触发回调的删掉，改成如下====
+            tcp_conn *conn = new tcp_conn(connfd, _loop);
+            if (conn == NULL) {
+                fprintf(stderr, "new tcp_conn error\n");
+                exit(1);
+            }
+            // ============================================
+            printf("get new connection succ!\n");
             break;
-          	// ============= 新增 ======================
         }
     }
 }
