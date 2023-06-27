@@ -3,12 +3,13 @@
 #include "io_buf.h"
 #include "event_loop.h"
 #include "message.h"
+#include "net_connection.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-class tcp_client
+class tcp_client : public net_connection
 {
 public:
     //初始化客户端套接字
@@ -33,11 +34,15 @@ public:
 
 
     //设置业务处理回调函数
-    void set_msg_callback(msg_callback *msg_cb) 
-    {
-        this->_msg_callback = msg_cb;
+    //void set_msg_callback(msg_callback *msg_cb) 
+    //{
+        //this->_msg_callback = msg_cb;
+    //}
+    
+    //注册消息路由回调函数
+    void add_msg_router(int msgid, msg_callback *cb, void *user_data = NULL) {
+        _router.register_msg_router(msgid, cb, user_data);
     }
-
     bool connected; //链接是否创建成功
     //server端地址
     struct sockaddr_in _server_addr;
@@ -54,5 +59,7 @@ private:
     //当前客户端的名称 用户记录日志
     const char *_name;
 
-    msg_callback *_msg_callback;
+    //处理消息的分发路由
+    msg_router _router;    
+    //msg_callback *_msg_callback; //单路由模式去掉
 };

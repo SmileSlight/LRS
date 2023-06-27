@@ -21,6 +21,9 @@ struct message{
 };
 struct message msg;
 
+// ==== 消息分发路由   ===
+msg_router tcp_server::router;
+
 void server_rd_callback(event_loop *loop, int fd, void *args);
 void server_wt_callback(event_loop *loop, int fd, void *args);
 

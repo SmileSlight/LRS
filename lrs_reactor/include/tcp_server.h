@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include "event_loop.h"
 #include "tcp_conn.h"
+#include "message.h"
 
 
 class tcp_server
@@ -16,6 +17,14 @@ public:
 
     //链接对象释放的析构
     ~tcp_server();
+    
+    // ==== 消息分发路由   ===
+    static msg_router router; 
+
+    //注册消息路由回调函数
+    void add_msg_router(int msgid, msg_callback *cb, void *user_data = NULL) {
+        router.register_msg_router(msgid, cb, user_data);
+    }
 
 private: 
     //基础信息
