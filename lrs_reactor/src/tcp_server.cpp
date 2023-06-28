@@ -266,3 +266,11 @@ void tcp_server::get_conn_num(int *curr_conn)
     *curr_conn = _curr_conns;
     pthread_mutex_unlock(&_conns_mutex);
 }
+
+//创建链接之后的回调函数
+conn_callback tcp_server::conn_start_cb = NULL;
+void * tcp_server::conn_start_cb_args = NULL;
+
+//销毁链接之前的回调函数
+conn_callback tcp_server::conn_close_cb = NULL;
+void * tcp_server::conn_close_cb_args = NULL;
