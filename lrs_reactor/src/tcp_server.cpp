@@ -84,7 +84,7 @@ tcp_server::tcp_server(event_loop *loop, const char *ip, uint16_t port)
     //5 将_sockfd添加到event_loop中
     _loop = loop;
 
-    //6 =============  创建链接管理 ===============
+    //6 创建链接管理
     _max_conns = MAX_CONNS;
     //创建链接信息数组
     conns = new tcp_conn*[_max_conns+3];//3是因为stdin,stdout,stderr 已经被占用，再新开fd一定是从3开始,所以不加3就会栈溢出
@@ -92,9 +92,19 @@ tcp_server::tcp_server(event_loop *loop, const char *ip, uint16_t port)
         fprintf(stderr, "new conns[%d] error\n", _max_conns);
         exit(1);
     }
-    //===========================================
 
-    //7 注册_socket读事件-->accept处理
+    //7 =============创建线程池=================
+    int thread_cnt = 3;//TODO 从配置文件中读取
+    if (thread_cnt > 0) {
+        _thread_pool = new thread_pool(thread_cnt);
+        if (_thread_pool == NULL) {
+            fprintf(stderr, "tcp_server new thread_pool error\n");
+            exit(1);
+        }
+    }
+  	// ========================================
+
+    //8 注册_socket读事件-->accept处理
     _loop->add_io_event(_sockfd, accept_callback, EPOLLIN, this);
 }
 
@@ -197,12 +207,11 @@ void tcp_server::do_accept()
                 break;
             }
             else {
-                fprintf(stderr, "accept error");
+                fprintf(stderr, "accept error\n");
                 exit(1);
             }
         }
         else {
-          	// ===========================================
             //accept succ!
             int cur_conns;
             get_conn_num(&cur_conns);
@@ -213,16 +222,31 @@ void tcp_server::do_accept()
                 close(connfd);
             }
             else {
+								// ========= 将新连接由线程池处理 ==========
+                if (_thread_pool != NULL) {
+                    //启动多线程模式 创建链接
+                    //1 选择一个线程来处理
+                    thread_queue<task_msg>* queue = _thread_pool->get_thread();
+                    //2 创建一个新建链接的消息任务
+                    task_msg task;
+                    task.type = task_msg::NEW_CONN;
+                    task.connfd = connfd;
 
-                tcp_conn *conn = new tcp_conn(connfd, _loop);
-                if (conn == NULL) {
-                    fprintf(stderr, "new tcp_conn error\n");
-                    exit(1);
+                    //3 添加到消息队列中，让对应的thread进程event_loop处理
+                    queue->send(task);
+                 // =====================================
                 }
-                printf("get new connection succ!\n");
+                else {
+                    //启动单线程模式
+                    tcp_conn *conn = new tcp_conn(connfd, _loop);
+                    if (conn == NULL) {
+                        fprintf(stderr, "new tcp_conn error\n");
+                        exit(1);
+                    }
+                    printf("[tcp_server]: get new connection succ!\n");
+                    break;
+                }
             }
-            // ===========================================
-            break;
         }
     }
 }

@@ -4,8 +4,7 @@
 #include "event_loop.h"
 #include "tcp_conn.h"
 #include "message.h"
-#include "net_connection.h"
-
+#include "thread_pool.h"
 
 class tcp_server
 { 
@@ -68,6 +67,9 @@ public:
     static void *conn_close_cb_args;
 
 private:
+    //线程池
+    thread_pool *_thread_pool;
+    
     //TODO 
     //从配置文件中读取
 #define MAX_CONNS 10000
