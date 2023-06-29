@@ -70,3 +70,4 @@ private:
     //用户保护内存池链表修改的互斥锁
     static pthread_mutex_t _mutex;
 };
+

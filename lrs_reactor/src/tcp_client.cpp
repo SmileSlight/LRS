@@ -29,7 +29,6 @@ tcp_client::tcp_client(event_loop *loop, const char *ip, unsigned short port, co
     _ibuf(4194304)
 {
     _sockfd = -1;
-    //_msg_callback = NULL;
     _name = name;
     _loop = loop;
     
@@ -42,6 +41,11 @@ tcp_client::tcp_client(event_loop *loop, const char *ip, unsigned short port, co
     _addrlen = sizeof(_server_addr);
 
     this->do_connect();
+}
+
+int tcp_client::get_fd()
+{
+    return _sockfd;
 }
 
 //判断链接是否是创建链接，主要是针对非阻塞socket 返回EINPROGRESS错误
@@ -59,12 +63,11 @@ static void connection_delay(event_loop *loop, int fd, void *args)
 
         printf("connect %s:%d succ!\n", inet_ntoa(cli->_server_addr.sin_addr), ntohs(cli->_server_addr.sin_port));
 
-
-	//调用开发者注册的创建链接Hook函数
+        //调用开发者注册的创建链接Hook函数
         if (cli->_conn_start_cb != NULL) {
             cli->_conn_start_cb(cli, cli->_conn_start_cb_args);
         }
-			
+
         loop->add_io_event(fd, read_callback, EPOLLIN, cli);
 
         if (cli->_obuf.length != 0) {
@@ -102,6 +105,7 @@ void tcp_client::do_connect()
         if (_conn_start_cb != NULL) {
             _conn_start_cb(this, _conn_start_cb_args);
         }
+        
 
         //注册读回调
         _loop->add_io_event(_sockfd, read_callback, EPOLLIN, this);
@@ -229,13 +233,8 @@ int tcp_client::do_read()
         //头部读取完毕
         _ibuf.pop(MESSAGE_HEAD_LEN);
 
-        //3. 交给业务函数处理
-        //if (_msg_callback != NULL) {
-            //this->_msg_callback(_ibuf.data + _ibuf.head, length, msgid, this, NULL);
-        //}
-        // 消息路由分发
+        //3. 消息路由分发
         this->_router.call(msgid, length, _ibuf.data + _ibuf.head, this);
-    
 
         //数据区域处理完毕
         _ibuf.pop(length);
@@ -277,7 +276,7 @@ int tcp_client::do_write()
 
     if (_obuf.length == 0) {
         //已经写完，删除写事件
-        printf("do write over, del EPOLLOUT\n");
+        //printf("do write over, del EPOLLOUT\n");
         this->_loop->del_io_event(_sockfd, EPOLLOUT);
     }
 
@@ -304,6 +303,7 @@ void tcp_client::clean_conn()
     //重新连接
     this->do_connect();
 }
+
 
 tcp_client::~tcp_client()
 {

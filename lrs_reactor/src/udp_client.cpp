@@ -1,3 +1,4 @@
+
 #include "udp_client.h"
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -42,6 +43,11 @@ udp_client::udp_client(event_loop *loop, const char *ip, uint16_t port)
     //3 添加读事件
     _loop = loop; 
     _loop->add_io_event(_sockfd, read_callback, EPOLLIN, this);
+}
+
+int udp_client::get_fd()
+{
+    return _sockfd;
 }
 
 udp_client::~udp_client()
@@ -109,3 +115,5 @@ int udp_client::send_message(const char *data, int msglen, int msgid)
 
     return ret;
 }
+
+

@@ -32,3 +32,4 @@ public:
     //当前io_buf所保存的数据地址
     char *data;
 };
+

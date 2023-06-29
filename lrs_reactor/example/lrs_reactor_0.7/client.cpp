@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+
 //客户端业务
 void busi(const char *data, uint32_t len, int msgid, net_connection  *conn, void *user_data)
 {
@@ -29,12 +30,16 @@ void on_client_lost(net_connection *conn, void *args)
     printf("Client is lost!\n");
 }
 
+
+
 int main() 
 {
+
     event_loop loop;
 
     //创建tcp客户端
     tcp_client client(&loop, "127.0.0.1", 7777, "clientv0.6");
+
 
     //注册消息路由业务
     client.add_msg_router(1, busi);
@@ -51,3 +56,6 @@ int main()
 
     return 0;
 }
+
+
+

@@ -2,8 +2,6 @@
 #include <sys/ioctl.h>
 #include <string.h>
 
-// reactor_buf:
-
 reactor_buf::reactor_buf() 
 {
     _buf = NULL;
@@ -42,7 +40,8 @@ void reactor_buf::clear()
     }
 }
 
-// input_buf:
+//================= reactor_buf ===============
+
 
 //从一个fd中读取数据到reactor_buf中
 int input_buf::read_data(int fd)
@@ -120,7 +119,7 @@ void input_buf::adjust()
     }
 }
 
-// output_buf:
+//================= input_buf ===========
 
 //将一段数据 写到一个reactor_buf中
 int output_buf::send_data(const char *data, int datalen)
@@ -185,3 +184,5 @@ int output_buf::write2fd(int fd)
 
     return already_write;
 }
+
+

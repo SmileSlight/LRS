@@ -2,7 +2,7 @@
 
 int main() {
 
-	lrs_hello();
+    lars_hello();
 
-	return 0;
+    return 0;
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <ext/hash_map>
 #include "net_connection.h"
+#include <ext/hash_map>
 
 //解决tcp粘包问题的消息头
 struct msg_head
@@ -18,16 +18,15 @@ struct msg_head
 
 //msg 业务回调函数原型
 
-//===================== 消息分发路由机制 ==================
-class tcp_client;
 typedef void msg_callback(const char *data, uint32_t len, int msgid, net_connection *net_conn, void *user_data);
+
 
 //消息路由分发机制
 class msg_router 
 {
 public:
-    msg_router() {
-    		printf("msg router init ...\n");
+    msg_router():_router(),_args() {
+        printf("msg_router init...\n");
     }  
 
     //给一个消息ID注册一个对应的回调业务函数
@@ -48,7 +47,9 @@ public:
     //调用注册的对应的回调业务函数
     void call(int msgid, uint32_t msglen, const char *data, net_connection *net_conn) 
     {
-        printf("call msgid = %d\n", msgid);
+        //printf("call msgid = %d\n", msgid);
+        //printf("call data = %s\n", data);
+        //printf("call msglen = %d\n", msglen);
         //判断msgid对应的回调是否存在
         if (_router.find(msgid) == _router.end()) {
             fprintf(stderr, "msgid %d is not register!\n", msgid);
@@ -59,7 +60,6 @@ public:
         msg_callback *callback = _router[msgid];
         void *user_data = _args[msgid];
         callback(data, msglen, msgid, net_conn, user_data);
-        printf("=======\n");
     }
 
 private:

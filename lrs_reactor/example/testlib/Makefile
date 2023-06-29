@@ -6,7 +6,7 @@ LIB=-L../../lib -llreactor
 OBJS = $(addsuffix .o, $(basename $(wildcard *.cc)))
 
 all:
-	$(CXX) -o hello_lrs $(CFLAGS)  hello_lrs.cpp $(INC) $(LIB)
+	$(CXX) -o hello_lars $(CFLAGS)  hello_lars.cpp $(INC) $(LIB)
 
 clean:
-	-rm -f *.o hello_lrs
+	-rm -f *.o hello_lars

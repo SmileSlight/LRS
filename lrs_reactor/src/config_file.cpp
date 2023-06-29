@@ -250,3 +250,5 @@ bool config_file::setPath(const std::string& path)
     //加载文件
     return config->Load(path);
 }
+
+

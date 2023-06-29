@@ -1,6 +1,8 @@
 #include "event_loop.h"
 #include <assert.h>
 
+
+
 //构造，初始化epoll堆
 event_loop::event_loop() 
 {
@@ -53,8 +55,9 @@ void event_loop::event_process()
                     this->del_io_event(_fired_evs[i].data.fd);
                 }
             }
-
         }
+        //每次处理完一组epoll_wait触发的事件之后，处理异步任务
+        this->execute_ready_tasks();
     }
 }
 
@@ -137,7 +140,7 @@ void event_loop::del_io_event(int fd, int mask)
     int &o_mask = it->second.mask;
     //修正mask
     o_mask = o_mask & (~mask);
-    
+
     if (o_mask == 0) {
         //如果修正之后 mask为0，则删除
         this->del_io_event(fd);
@@ -149,4 +152,30 @@ void event_loop::del_io_event(int fd, int mask)
         event.data.fd = fd;
         epoll_ctl(_epfd, EPOLL_CTL_MOD, fd, &event);
     }
+}
+
+
+
+//添加一个任务task到ready_tasks集合中
+void event_loop::add_task(task_func func, void *args)
+{
+    task_func_pair func_pair(func, args);
+    _ready_tasks.push_back(func_pair);
+}
+
+//执行全部的ready_tasks里面的任务
+void event_loop::execute_ready_tasks()
+{
+    std::vector<task_func_pair>::iterator it;
+
+    for (it = _ready_tasks.begin(); it != _ready_tasks.end(); it++) {
+        task_func func = it->first;//任务回调函数
+        void *args = it->second;//回调函数形参
+
+        //执行任务
+        func(this, args);
+    }
+
+    //全部执行完毕，清空当前的_ready_tasks
+    _ready_tasks.clear();
 }

@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
+
 /*
  * 一旦有task消息过来，这个业务是处理task消息业务的主流程
  *
@@ -37,12 +38,14 @@ void deal_task_message(event_loop *loop, int fd, void *args)
         }
         else if (task.type == task_msg::NEW_TASK) {
             //是一个新的普通任务
-            //TODO
+            //当前的loop就是一个thread的事件监控loop,让当前loop触发task任务的回调
+            loop->add_task(task.task_cb, task.args);
         } 
         else {
             //其他未识别任务
             fprintf(stderr, "unknow task!\n");
         }
+
     }
 }
 
@@ -100,6 +103,7 @@ thread_pool::thread_pool(int thread_cnt)
     }
 }
 
+
 thread_queue<task_msg>* thread_pool::get_thread()
 {
     if (_index == _thread_cnt) {
@@ -107,4 +111,23 @@ thread_queue<task_msg>* thread_pool::get_thread()
     }
 
     return _queues[_index];
+}
+
+void thread_pool::send_task(task_func func, void *args)
+{
+    task_msg task;
+
+    //给当前thread_pool中的每个thread里的pool添加一个task任务
+    for (int i = 0; i < _thread_cnt; i++) {
+        //封装一个task消息
+        task.type = task_msg::NEW_TASK;
+        task.task_cb = func;
+        task.args = args;
+
+        //取出第i个thread的消息队列
+        thread_queue<task_msg> *queue = _queues[i];
+
+        //发送task消息
+        queue->send(task);
+    }
 }

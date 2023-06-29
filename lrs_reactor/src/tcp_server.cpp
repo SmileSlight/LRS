@@ -11,21 +11,64 @@
 #include <errno.h>
 
 #include "tcp_server.h"
-#include "reactor_buf.h"
 #include "tcp_conn.h"
+#include "reactor_buf.h"
+#include "config_file.h"
 
-//临时的收发消息
-struct message{
-    char data[m4K];
-    char len;
-};
-struct message msg;
+
+// ==== 链接资源管理   ====
+//全部已经在线的连接信息
+tcp_conn ** tcp_server::conns = NULL;
+
+//最大容量链接个数;
+int tcp_server::_max_conns = 0;      
+
+//当前链接刻度
+int tcp_server::_curr_conns = 0;
+
+//保护_curr_conns刻度修改的锁
+pthread_mutex_t tcp_server::_conns_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+//创建链接之后的回调函数
+conn_callback tcp_server::conn_start_cb = NULL;
+void * tcp_server::conn_start_cb_args = NULL;
+
+//销毁链接之前的回调函数
+conn_callback tcp_server::conn_close_cb = NULL;
+void * tcp_server::conn_close_cb_args = NULL;
 
 // ==== 消息分发路由   ===
 msg_router tcp_server::router;
 
-void server_rd_callback(event_loop *loop, int fd, void *args);
-void server_wt_callback(event_loop *loop, int fd, void *args);
+
+//新增一个新建的连接
+void tcp_server::increase_conn(int connfd, tcp_conn *conn)
+{
+    pthread_mutex_lock(&_conns_mutex);
+    conns[connfd] = conn;
+    _curr_conns++;
+    pthread_mutex_unlock(&_conns_mutex);
+}
+
+//减少一个断开的连接
+void tcp_server::decrease_conn(int connfd)
+{
+    pthread_mutex_lock(&_conns_mutex);
+    conns[connfd] = NULL;
+    _curr_conns--;
+    pthread_mutex_unlock(&_conns_mutex);
+}
+
+//得到当前链接的刻度
+void tcp_server::get_conn_num(int *curr_conn)
+{
+    pthread_mutex_lock(&_conns_mutex);
+    *curr_conn = _curr_conns;
+    pthread_mutex_unlock(&_conns_mutex);
+}
+
+// =======================
+
 
 //listen fd 客户端有新链接请求过来的回调函数
 void accept_callback(event_loop *loop, int fd, void *args)
@@ -33,6 +76,7 @@ void accept_callback(event_loop *loop, int fd, void *args)
     tcp_server *server = (tcp_server*)args;
     server->do_accept();
 }
+
 
 //server的构造函数
 tcp_server::tcp_server(event_loop *loop, const char *ip, uint16_t port)
@@ -85,16 +129,17 @@ tcp_server::tcp_server(event_loop *loop, const char *ip, uint16_t port)
     _loop = loop;
 
     //6 创建链接管理
-    _max_conns = MAX_CONNS;
+    _max_conns = config_file::instance()->GetNumber("reactor", "maxConn", 1024);
     //创建链接信息数组
     conns = new tcp_conn*[_max_conns+3];//3是因为stdin,stdout,stderr 已经被占用，再新开fd一定是从3开始,所以不加3就会栈溢出
     if (conns == NULL) {
         fprintf(stderr, "new conns[%d] error\n", _max_conns);
         exit(1);
     }
+    bzero(conns, sizeof(tcp_conn*)*(_max_conns+3));
 
-    //7 =============创建线程池=================
-    int thread_cnt = 3;//TODO 从配置文件中读取
+    //7 创建线程池
+    int thread_cnt = config_file::instance()->GetNumber("reactor", "threadNum", 10);
     if (thread_cnt > 0) {
         _thread_pool = new thread_pool(thread_cnt);
         if (_thread_pool == NULL) {
@@ -102,88 +147,12 @@ tcp_server::tcp_server(event_loop *loop, const char *ip, uint16_t port)
             exit(1);
         }
     }
-  	// ========================================
 
     //8 注册_socket读事件-->accept处理
     _loop->add_io_event(_sockfd, accept_callback, EPOLLIN, this);
 }
 
-//链接对象释放的析构
-tcp_server::~tcp_server()
-{
-    close(_sockfd);
-}
 
-//server read_callback
-void server_rd_callback(event_loop *loop, int fd, void *args)
-{
-    int ret = 0;
-
-    struct message *msg = (struct message*)args;
-    input_buf ibuf;
-
-    ret = ibuf.read_data(fd);
-    if (ret == -1) {
-        fprintf(stderr, "ibuf read_data error\n");
-        //删除事件
-        loop->del_io_event(fd);
-        
-        //对端关闭
-        close(fd);
-
-        return;
-    }
-    if (ret == 0) {
-        //删除事件
-        loop->del_io_event(fd);
-        
-        //对端关闭
-        close(fd);
-        return ;
-    }
-
-    printf("ibuf.length() = %d\n", ibuf.length());
-    
-    //将读到的数据放在msg中
-    msg->len = ibuf.length();
-    bzero(msg->data, msg->len);
-    memcpy(msg->data, ibuf.data(), msg->len);
-
-    ibuf.pop(msg->len);
-    ibuf.adjust();
-
-    printf("recv data = %s\n", msg->data);
-
-    
-    //删除读事件，添加写事件
-    loop->del_io_event(fd, EPOLLIN);
-    loop->add_io_event(fd, server_wt_callback, EPOLLOUT, msg);
-}
-
-//server write_callback
-void server_wt_callback(event_loop *loop, int fd, void *args)
-{
-    struct message *msg = (struct message*)args;
-    output_buf obuf;
-
-    //回显数据
-    obuf.send_data(msg->data, msg->len);
-    while(obuf.length()) {
-        int write_ret = obuf.write2fd(fd);
-        if (write_ret == -1) {
-            fprintf(stderr, "write connfd error\n");
-            return;
-        }
-        else if(write_ret == 0) {
-            //不是错误，表示此时不可写
-            break;
-        }
-    }
-
-    //删除写事件，添加读事件
-    loop->del_io_event(fd, EPOLLOUT);
-    loop->add_io_event(fd, server_rd_callback, EPOLLIN, msg);
-}
 
 //开始提供创建链接服务
 void tcp_server::do_accept()
@@ -222,7 +191,7 @@ void tcp_server::do_accept()
                 close(connfd);
             }
             else {
-								// ========= 将新连接由线程池处理 ==========
+
                 if (_thread_pool != NULL) {
                     //启动多线程模式 创建链接
                     //1 选择一个线程来处理
@@ -234,7 +203,6 @@ void tcp_server::do_accept()
 
                     //3 添加到消息队列中，让对应的thread进程event_loop处理
                     queue->send(task);
-                 // =====================================
                 }
                 else {
                     //启动单线程模式
@@ -251,50 +219,11 @@ void tcp_server::do_accept()
     }
 }
 
-// ==== 链接资源管理   ====
-//全部已经在线的连接信息
-tcp_conn ** tcp_server::conns = NULL;
-
-//最大容量链接个数;
-int tcp_server::_max_conns = 0;      
-
-//当前链接刻度
-int tcp_server::_curr_conns = 0;
-
-//保护_curr_conns刻度修改的锁
-pthread_mutex_t tcp_server::_conns_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-
-//新增一个新建的连接
-void tcp_server::increase_conn(int connfd, tcp_conn *conn)
+//链接对象释放的析构
+tcp_server::~tcp_server()
 {
-    pthread_mutex_lock(&_conns_mutex);
-    conns[connfd] = conn;
-    _curr_conns++;
-    pthread_mutex_unlock(&_conns_mutex);
+    //将全部的事件删除
+    _loop->del_io_event(_sockfd);
+    //关闭套接字
+    close(_sockfd);
 }
-
-//减少一个断开的连接
-void tcp_server::decrease_conn(int connfd)
-{
-    pthread_mutex_lock(&_conns_mutex);
-    conns[connfd] = NULL;
-    _curr_conns--;
-    pthread_mutex_unlock(&_conns_mutex);
-}
-
-//得到当前链接的刻度
-void tcp_server::get_conn_num(int *curr_conn)
-{
-    pthread_mutex_lock(&_conns_mutex);
-    *curr_conn = _curr_conns;
-    pthread_mutex_unlock(&_conns_mutex);
-}
-
-//创建链接之后的回调函数
-conn_callback tcp_server::conn_start_cb = NULL;
-void * tcp_server::conn_start_cb_args = NULL;
-
-//销毁链接之前的回调函数
-conn_callback tcp_server::conn_close_cb = NULL;
-void * tcp_server::conn_close_cb_args = NULL;

@@ -6,6 +6,7 @@
 #include "message.h"
 #include "thread_pool.h"
 
+
 class tcp_server
 { 
 public: 
@@ -21,6 +22,11 @@ public:
     //注册消息路由回调函数
     void add_msg_router(int msgid, msg_callback *cb, void *user_data = NULL) {
         router.register_msg_router(msgid, cb, user_data);
+    }
+
+    //获取当前server的线程池
+    thread_pool *thread_poll() {
+        return _thread_pool;
     }
 
 private: 
@@ -67,13 +73,10 @@ public:
     static void *conn_close_cb_args;
 
 private:
-    //线程池
-    thread_pool *_thread_pool;
-    
-    //TODO 
-    //从配置文件中读取
-#define MAX_CONNS 10000
     static int _max_conns;          //最大client链接个数
     static int _curr_conns;         //当前链接刻度
     static pthread_mutex_t _conns_mutex; //保护_curr_conns刻度修改的锁
-};
+
+    //线程池
+    thread_pool *_thread_pool;
+}; 

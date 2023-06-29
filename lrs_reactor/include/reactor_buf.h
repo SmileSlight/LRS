@@ -45,4 +45,3 @@ public:
     //将reactor_buf中的数据写到一个fd中
     int write2fd(int fd);
 };
-
