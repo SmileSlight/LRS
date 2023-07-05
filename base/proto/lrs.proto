@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package lars;
+package lrs;
 
 /* Lars系统的消息ID */
 enum MessageId {

@@ -36,6 +36,8 @@ public:
     //构建map
     void build_maps();
     
+    //获取modid/cmdid对应的host信息
+    host_set get_hosts(int modid, int cmdid);
 private:
     //构造函数私有化
     Route();
