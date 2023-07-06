@@ -1,6 +1,14 @@
+#include <ext/hash_set>
 #include "lrs_reactor.h"
+#include "subscribe.h"
 #include "dns_route.h"
 #include "lrs.pb.h"
+
+tcp_server *server;
+
+using __gnu_cxx::hash_set;
+
+typedef hash_set<uint64_t> client_sub_mod_list;
 
 void get_route(const char *data, uint32_t len, int msgid, net_connection *net_conn, void *user_data)
 {
@@ -39,6 +47,28 @@ void get_route(const char *data, uint32_t len, int msgid, net_connection *net_co
     net_conn->send_message(responseString.c_str(), responseString.size(), lrs::ID_GetRouteResponse)    ;
 }
 
+//订阅route 的modid/cmdid
+void create_subscribe(net_connection * conn, void *args)
+{
+    conn->param = new client_sub_mod_list;
+}
+
+//退订route 的modid/cmdid
+void clear_subscribe(net_connection * conn, void *args)
+{
+    client_sub_mod_list::iterator it;
+    client_sub_mod_list *sub_list = (client_sub_mod_list*)conn->param;
+
+    for (it = sub_list->begin(); it  != sub_list->end(); it++) {
+        uint64_t mod = *it;
+        SubscribeList::instance()->unsubscribe(mod, conn->get_fd());
+    }
+
+    delete sub_list;
+
+    conn->param = NULL;
+}
+
 int main(int argc, char **argv)
 {
     event_loop loop;
@@ -50,7 +80,12 @@ int main(int argc, char **argv)
 
 
     //创建tcp服务器
-    tcp_server *server = new tcp_server(&loop, ip.c_str(), port);
+    server = new tcp_server(&loop, ip.c_str(), port);
+
+    //==========注册链接创建/销毁Hook函数============
+    server->set_conn_start(create_subscribe);
+    server->set_conn_close(clear_subscribe);
+  	//============================================
 
     //注册路由业务
     server->add_msg_router(lrs::ID_GetRouteRequest, get_route);
