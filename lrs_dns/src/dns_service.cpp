@@ -82,13 +82,24 @@ int main(int argc, char **argv)
     //创建tcp服务器
     server = new tcp_server(&loop, ip.c_str(), port);
 
-    //==========注册链接创建/销毁Hook函数============
+    //注册链接创建/销毁Hook函数
     server->set_conn_start(create_subscribe);
     server->set_conn_close(clear_subscribe);
-  	//============================================
 
     //注册路由业务
     server->add_msg_router(lrs::ID_GetRouteRequest, get_route);
+
+		// =================================================
+    //开辟backend thread 周期性检查db数据库route信息的更新状态
+    pthread_t tid;
+    int ret = pthread_create(&tid, NULL, check_route_changes, NULL);
+    if (ret == -1) {
+        perror("pthread_create backendThread");
+        exit(1);
+    }
+    //设置分离模式
+    pthread_detach(tid);
+  	// =================================================
 
     //开始事件监听    
     printf("lrs dns service ....\n");
